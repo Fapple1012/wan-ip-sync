@@ -18,9 +18,9 @@ RUN echo 'deb https://mirrors.tencent.com/debian trixie main non-free-firmware' 
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装Playwright浏览器（使用内置chromium）
+# 安装Playwright浏览器及其依赖
 RUN pip install --no-cache-dir playwright \
-    && playwright install chromium
+    && playwright install --with-deps chromium
 
 # 复制依赖文件
 COPY ../requirements.txt /tmp/requirements.txt
