@@ -3,6 +3,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        - DOCKER_REGISTRY_MIRROR=https://mirror.ccs.tencentyun.com
     container_name: wan-ip-sync
     restart: unless-stopped
     environment:
