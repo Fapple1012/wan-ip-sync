@@ -1,0 +1,23 @@
+services:
+  wan-ip-sync:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: wan-ip-sync
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      # 挂载配置文件（容器内路径）
+      - ../config/config.yaml:/app/config/config.yaml:ro
+      # 挂载日志目录（持久化日志）
+      - ../logs:/app/logs
+      # 挂载IP记录文件
+      - ../data:/app/data
+    working_dir: /app/src
+    networks:
+      - wan-ip-sync-network
+
+networks:
+  wan-ip-sync-network:
+    driver: bridge

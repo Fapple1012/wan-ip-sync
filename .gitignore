@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 项目特定
+logs/*.log
+data/.last_ip
+*.local
+
+# 配置（敏感信息不上传）
+config/config.yaml
+
+# 环境
+.env
+.env.local
+
+# Docker
+docker/data/
+
+# 系统
+.DS_Store
+Thumbs.db

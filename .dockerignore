@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+dist
+build
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# 测试文件
+test*.py
+*.test.py
+
+# 文档
+docs/
+
+# Docker
+docker/
+
+# 日志文件
+logs/*.log
+
+# 本地状态
+data/.last_ip
+*.local
