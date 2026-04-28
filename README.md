@@ -169,6 +169,21 @@ docker run --rm \
   wan-ip-sync python main.py --once
 ```
 
+### 自定义挂载路径
+
+通过环境变量自定义挂载路径：
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `CONFIG_PATH` | `./config/config.yaml` | 配置文件路径 |
+| `DATA_PATH` | `./data` | 数据目录 |
+| `LOGS_PATH` | `./logs` | 日志目录 |
+
+```bash
+# 示例：使用自定义路径
+CONFIG_PATH=/your/config/config.yaml DATA_PATH=/your/data docker compose up -d
+```
+
 ### 查看容器状态
 
 ```bash
@@ -176,7 +191,7 @@ docker run --rm \
 docker ps | grep wan-ip-sync
 
 # 查看实时日志
-docker-compose logs -f
+docker compose logs -f
 
 # 进入容器调试
 docker exec -it wan-ip-sync bash
@@ -186,10 +201,10 @@ docker exec -it wan-ip-sync bash
 
 ```bash
 # 停止并删除容器
-docker-compose down
+docker compose down
 
 # 删除镜像
-docker rmi wan-ip-sync
+docker rmi docker-wan-ip-sync
 ```
 
 ## 运行日志
@@ -238,14 +253,6 @@ wan_ip_sync/
 ├── data/                   # 数据目录
 ├── requirements.txt        # 依赖
 └── README.md               # 使用说明
-```
-│   ├── Dockerfile          # Docker镜像构建文件
-│   └── docker-compose.yml  # Docker Compose配置
-├── docs/                   # 文档目录
-│   ├── ARCHITECTURE.md     # 架构设计文档
-│   └── README.md           # 本文档
-├── logs/                   # 日志目录
-└── data/                   # 数据目录（IP记录）
 ```
 
 ## 故障排除

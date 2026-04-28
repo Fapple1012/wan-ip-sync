@@ -11,14 +11,14 @@ services:
       - TZ=Asia/Shanghai
     volumes:
       - type: bind
-        source: /mnt/d/01_docker/wan-ip-sync/config/config.yaml
+        source: ${CONFIG_PATH:-./config/config.yaml}
         target: /app/config/config.yaml
         read_only: true
       - type: bind
-        source: /mnt/d/01_docker/wan-ip-sync/data
+        source: ${DATA_PATH:-./data}
         target: /app/data
       - type: bind
-        source: /mnt/d/01_docker/wan-ip-sync/logs
+        source: ${LOGS_PATH:-./logs}
         target: /app/logs
     working_dir: /app/src
     networks:
