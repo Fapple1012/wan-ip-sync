@@ -1,7 +1,6 @@
 import re
 import asyncio
 import logging
-import requests
 from typing import Optional
 from playwright.async_api import async_playwright
 
@@ -67,43 +66,9 @@ class HuaweiRouterFetcher:
             logger.error(f"浏览器获取IP失败: {e}")
             return None
 
-    def _fetch_from_backup(self) -> Optional[str]:
-        """从外部服务获取IP（备用方案）"""
-        backup_services = [
-            "https://api.ipify.org",
-            "https://icanhazip.com",
-            "https://ifconfig.me/ip",
-        ]
-
-        for service in backup_services:
-            try:
-                response = requests.get(service, timeout=5)
-                if response.status_code == 200:
-                    ip = response.text.strip()
-                    if self._is_valid_ip(ip):
-                        logger.info(f"从外部服务获取到公网IP: {ip}")
-                        return ip
-            except Exception:
-                continue
-
-        logger.error("无法获取公网IP")
-        return None
-
-    @staticmethod
-    def _is_valid_ip(ip: str) -> bool:
-        """验证是否为有效的IPv4地址"""
-        pattern = r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-        return bool(re.match(pattern, ip))
-
     def get_public_ip(self) -> Optional[str]:
-        """获取公网IP地址"""
-        # 首先尝试使用浏览器从路由器获取
-        ip = asyncio.run(self._get_ip_via_browser())
-        if ip:
-            return ip
-
-        # 备用方案：通过外部服务获取
-        return self._fetch_from_backup()
+        """获取公网IP地址（仅从路由器获取）"""
+        return asyncio.run(self._get_ip_via_browser())
 
 
 class IPFetcher:
