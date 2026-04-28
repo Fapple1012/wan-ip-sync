@@ -23,18 +23,27 @@ STATE_FILE = os.path.join(DATA_DIR, ".last_ip")
 
 
 def setup_logging():
-    """配置日志"""
+    """配置日志：DEBUG到屏幕，WARNING+同时写文件"""
     if not os.path.exists(LOG_DIR):
         os.makedirs(LOG_DIR)
 
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(logging.Formatter(
+        "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+
+    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    file_handler.setLevel(logging.WARNING)
+    file_handler.setFormatter(logging.Formatter(
+        "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+
     logging.basicConfig(
-        level=logging.INFO,
-        format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[
-            logging.FileHandler(LOG_FILE, encoding="utf-8"),
-            logging.StreamHandler(sys.stdout),
-        ],
+        level=logging.DEBUG,
+        handlers=[console_handler, file_handler],
     )
 
 
@@ -60,8 +69,8 @@ def save_current_ip(state_file: str, ip: str):
 
 def sync_once(config: dict, notifier: Notifier = None) -> bool:
     """执行一次同步"""
-    logging.info("=" * 50)
-    logging.info("开始执行IP同步")
+    logging.debug("=" * 50)
+    logging.debug("开始执行IP同步")
 
     # 1. 获取当前公网IP（从路由器）
     fetcher = IPFetcher(config)
@@ -73,7 +82,7 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
             notifier.notify_error("无法获取公网IP，请检查路由器连接")
         return False
 
-    logging.info(f"当前公网IP: {current_ip}")
+    logging.debug(f"当前公网IP: {current_ip}")
 
     # 2. 从阿里云DNS获取各记录当前的IP
     syncer = DNSSyncer(config)
@@ -85,9 +94,9 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
         record_name = f"{record}.{domain}" if record != "@" else domain
         dns_ips[record_name] = dns_ip
         if dns_ip:
-            logging.info(f"DNS当前IP [{record_name}]: {dns_ip}")
+            logging.debug(f"DNS当前IP [{record_name}]: {dns_ip}")
         else:
-            logging.info(f"DNS当前IP [{record_name}]: 不存在")
+            logging.debug(f"DNS当前IP [{record_name}]: 不存在")
 
     # 3. 检查是否有任何记录需要更新
     need_update = False
@@ -95,16 +104,16 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
         if dns_ip != current_ip:
             need_update = True
             if dns_ip:
-                logging.info(f"IP变化检测: {record_name} ({dns_ip} -> {current_ip})")
+                logging.debug(f"IP变化检测: {record_name} ({dns_ip} -> {current_ip})")
             else:
-                logging.info(f"DNS记录不存在或需创建: {record_name} -> {current_ip}")
+                logging.debug(f"DNS记录不存在或需创建: {record_name} -> {current_ip}")
 
     if not need_update:
-        logging.info("DNS记录已是最新，无需更新")
+        logging.debug("DNS记录已是最新，无需更新")
         return True
 
     # 4. 执行DNS同步
-    logging.info("执行DNS同步...")
+    logging.debug("执行DNS同步...")
     results = syncer.sync_all(current_ip)
 
     failed = [record for record, success in results.items() if not success]
@@ -123,7 +132,7 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
         else:
             notifier.notify_startup(current_ip)
 
-    logging.info("IP同步完成")
+    logging.debug("IP同步完成")
     return True
 
 
@@ -132,7 +141,7 @@ def run_loop(config: dict):
     interval = config.get("check_interval", 600)
     notifier = Notifier(config) if config.get("notification", {}).get("webhook_url") else None
 
-    logging.info(f"程序启动，每 {interval} 秒检查一次")
+    logging.debug(f"程序启动，每 {interval} 秒检查一次")
 
     while True:
         try:

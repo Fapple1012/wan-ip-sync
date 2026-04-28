@@ -36,7 +36,7 @@ class HuaweiRouterFetcher:
                 # 等待登录成功
                 try:
                     await page.wait_for_url("**/home**", timeout=15000)
-                    logger.info("路由器登录成功")
+                    logger.debug("路由器登录成功")
                 except Exception:
                     logger.error("等待登录超时")
                     await browser.close()
@@ -54,7 +54,7 @@ class HuaweiRouterFetcher:
                 ip_match = re.search(r'WAN\s*IP\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', text, re.IGNORECASE)
                 if ip_match:
                     wan_ip = ip_match.group(1)
-                    logger.info(f"从路由器获取到公网IP: {wan_ip}")
+                    logger.debug(f"从路由器获取到公网IP: {wan_ip}")
                     await browser.close()
                     return wan_ip
 

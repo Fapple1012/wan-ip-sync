@@ -64,7 +64,7 @@ class AliyunDNSSyncer:
         current_value = self.get_record_value(domain, record)
 
         if current_value == value:
-            logger.info(f"DNS记录已是最新，无需更新: {record}.{domain} = {value}")
+            logger.debug(f"DNS记录已是最新，无需更新: {record}.{domain} = {value}")
             return True
 
         if not current_value:
@@ -83,7 +83,7 @@ class AliyunDNSSyncer:
 
         try:
             self.client.do_action_with_exception(request)
-            logger.info(f"DNS记录更新成功: {record}.{domain} ({current_value} -> {value})")
+            logger.debug(f"DNS记录更新成功: {record}.{domain} ({current_value} -> {value})")
             return True
         except Exception as e:
             logger.error(f"更新DNS记录失败: {e}")
@@ -100,7 +100,7 @@ class AliyunDNSSyncer:
 
         try:
             self.client.do_action_with_exception(request)
-            logger.info(f"DNS记录添加成功: {record}.{domain} -> {value}")
+            logger.debug(f"DNS记录添加成功: {record}.{domain} -> {value}")
             return True
         except Exception as e:
             logger.error(f"添加DNS记录失败: {e}")

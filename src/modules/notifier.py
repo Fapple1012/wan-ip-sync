@@ -31,7 +31,7 @@ class WebhookNotifier:
             if response.status_code == 200:
                 result = response.json()
                 if result.get("errcode") == 0:
-                    logger.info(f"Webhook通知发送成功")
+                    logger.debug(f"Webhook通知发送成功")
                     return True
                 else:
                     logger.warning(f"Webhook通知发送失败: {result.get('errmsg', '未知错误')}")
