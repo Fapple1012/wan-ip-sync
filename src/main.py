@@ -22,6 +22,20 @@ DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 STATE_FILE = os.path.join(DATA_DIR, ".last_ip")
 
 
+class UTC8Formatter(logging.Formatter):
+    """UTC+8 时区的格式化器"""
+    def converter(self, timestamp):
+        import datetime as dt_module
+        utc_dt = dt_module.datetime.fromtimestamp(timestamp, dt_module.timezone.utc)
+        return utc_dt.astimezone(dt_module.timezone(dt_module.timedelta(hours=8)))
+
+    def formatTime(self, record, datefmt=None):
+        dt = self.converter(record.created)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.isoformat()
+
+
 def setup_logging():
     """配置日志：DEBUG到屏幕，WARNING+同时写文件"""
     if not os.path.exists(LOG_DIR):
@@ -29,14 +43,14 @@ def setup_logging():
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.DEBUG)
-    console_handler.setFormatter(logging.Formatter(
+    console_handler.setFormatter(UTC8Formatter(
         "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     ))
 
     file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
     file_handler.setLevel(logging.WARNING)
-    file_handler.setFormatter(logging.Formatter(
+    file_handler.setFormatter(UTC8Formatter(
         "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     ))
@@ -45,6 +59,15 @@ def setup_logging():
         level=logging.DEBUG,
         handlers=[console_handler, file_handler],
     )
+
+    # 禁用第三方库的 DEBUG 日志
+    for logger_name in [
+        "urllib3",
+        "requests",
+        "aliyunsdkcore",
+        "aliyunsdkalidns",
+    ]:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 def load_last_ip(state_file: str) -> str:
