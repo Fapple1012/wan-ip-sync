@@ -2,6 +2,7 @@ router:
   url: "http://192.168.3.1"      # 路由器地址
   username: "admin"             # 用户名
   password: "your_router_password"  # 路由器登录密码
+  timeout: 10                   # 路由器请求超时（秒，可选）
 
 aliyun:
   access_key_id: "your_access_key_id"      # 阿里云AccessKey ID

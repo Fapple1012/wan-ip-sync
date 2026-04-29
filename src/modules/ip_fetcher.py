@@ -1,74 +1,176 @@
-import re
-import asyncio
+import hashlib
+import hmac
 import logging
+import re
+import secrets
 from typing import Optional
-from playwright.async_api import async_playwright
+
+import requests
 
 logger = logging.getLogger("IPFetcher")
 
 
-class HuaweiRouterFetcher:
-    """华为凌霄子母路由 Q6 IP获取器（使用Playwright）"""
+class RouterLoginError(RuntimeError):
+    """路由器登录流程异常。"""
 
-    def __init__(self, url: str, username: str, password: str):
+
+class HuaweiRouterFetcher:
+    """华为凌霄子母路由 Q6 IP获取器（使用路由器HTTP API）"""
+
+    def __init__(self, url: str, username: str, password: str, timeout: int = 10):
         self.url = url.rstrip("/")
         self.username = username
         self.password = password
+        self.timeout = timeout
 
-    async def _get_ip_via_browser(self) -> Optional[str]:
-        """使用无头浏览器获取IP"""
+    @staticmethod
+    def _parse_csrf(html: str) -> dict[str, str]:
+        csrf_param = re.search(r'<meta name="csrf_param" content="([^"]+)"', html)
+        csrf_token = re.search(r'<meta name="csrf_token" content="([^"]+)"', html)
+        if not csrf_param or not csrf_token:
+            raise RouterLoginError("无法从路由器首页解析CSRF信息")
+
+        return {
+            "csrf_param": csrf_param.group(1),
+            "csrf_token": csrf_token.group(1),
+        }
+
+    @staticmethod
+    def _update_csrf(csrf: dict[str, str], payload: dict) -> dict[str, str]:
+        if payload.get("csrf_param") and payload.get("csrf_token"):
+            return {
+                "csrf_param": payload["csrf_param"],
+                "csrf_token": payload["csrf_token"],
+            }
+        return csrf
+
+    @staticmethod
+    def _router_hmac(key: bytes | str, message: bytes | str) -> bytes:
+        if isinstance(key, str):
+            key = key.encode()
+        if isinstance(message, str):
+            message = message.encode()
+        return hmac.new(key, message, hashlib.sha256).digest()
+
+    @classmethod
+    def _make_client_proof(
+        cls,
+        password: str,
+        salt_hex: str,
+        iterations: int,
+        auth_message: str,
+    ) -> tuple[str, str]:
+        salted_password = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode(),
+            bytes.fromhex(salt_hex),
+            iterations,
+            dklen=32,
+        )
+
+        # 路由器内置的CryptoJS SCRAM封装使用 HmacSHA256(message, key)，
+        # 因此这里的HMAC参数顺序与标准SCRAM相反。
+        client_key = cls._router_hmac(b"Client Key", salted_password)
+        stored_key = hashlib.sha256(client_key).digest()
+        client_signature = cls._router_hmac(auth_message, stored_key)
+        client_proof = bytes(a ^ b for a, b in zip(client_key, client_signature)).hex()
+
+        server_key = cls._router_hmac(b"Server Key", salted_password)
+        expected_server_signature = cls._router_hmac(auth_message, server_key).hex()
+        return client_proof, expected_server_signature
+
+    def _post_json(self, session: requests.Session, path: str, payload: dict) -> dict:
+        response = session.post(f"{self.url}{path}", json=payload, timeout=self.timeout)
+        response.raise_for_status()
         try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
-                page = await context.new_page()
+            return response.json()
+        except ValueError as exc:
+            raise RouterLoginError(
+                f"路由器接口 {path} 返回非JSON响应: {response.text!r}"
+            ) from exc
 
-                # 访问登录页
-                await page.goto(f"{self.url}/html/index.html")
-                await page.wait_for_load_state("networkidle")
+    def _login(self, session: requests.Session) -> dict[str, str]:
+        index = session.get(f"{self.url}/html/index.html", timeout=self.timeout)
+        index.raise_for_status()
+        csrf = self._parse_csrf(index.text)
 
-                # 填写密码并登录
-                await page.fill("#userpassword_ctrl", self.password)
-                await page.keyboard.press("Enter")
+        client_nonce = secrets.token_hex(32)
+        nonce_response = self._post_json(
+            session,
+            "/api/system/user_login_nonce",
+            {
+                "data": {
+                    "username": self.username,
+                    "firstnonce": client_nonce,
+                },
+                "csrf": csrf,
+            },
+        )
+        csrf = self._update_csrf(csrf, nonce_response)
 
-                # 等待登录成功
-                try:
-                    await page.wait_for_url("**/home**", timeout=15000)
-                    logger.debug("路由器登录成功")
-                except Exception:
-                    logger.error("等待登录超时")
-                    await browser.close()
-                    return None
+        if nonce_response.get("err") != 0:
+            raise RouterLoginError(f"user_login_nonce失败: {nonce_response}")
 
-                # 跳转到设备信息页面获取IP
-                await page.goto(f"{self.url}/html/index.html#/more/deviceinfo")
-                await page.wait_for_load_state("networkidle")
-                await asyncio.sleep(2)
+        server_nonce = nonce_response["servernonce"]
+        auth_message = f"{client_nonce},{server_nonce},{server_nonce}"
+        client_proof, expected_server_signature = self._make_client_proof(
+            password=self.password,
+            salt_hex=nonce_response["salt"],
+            iterations=int(nonce_response["iterations"]),
+            auth_message=auth_message,
+        )
 
-                # 获取页面文本
-                text = await page.inner_text("body")
+        proof_response = self._post_json(
+            session,
+            "/api/system/user_login_proof",
+            {
+                "data": {
+                    "clientproof": client_proof,
+                    "finalnonce": server_nonce,
+                },
+                "csrf": csrf,
+            },
+        )
 
-                # 解析公网IP（格式：WAN IP 59.56.34.93）
-                ip_match = re.search(r'WAN\s*IP\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', text, re.IGNORECASE)
-                if ip_match:
-                    wan_ip = ip_match.group(1)
-                    logger.debug(f"从路由器获取到公网IP: {wan_ip}")
-                    await browser.close()
-                    return wan_ip
+        if proof_response.get("err") != 0:
+            raise RouterLoginError(f"user_login_proof失败: {proof_response}")
+        if proof_response.get("serversignature") != expected_server_signature:
+            raise RouterLoginError("路由器SCRAM服务端签名校验失败")
 
-                logger.error("页面中未找到公网IP")
-                await browser.close()
-                return None
+        logger.debug("路由器登录成功")
+        return self._update_csrf(csrf, proof_response)
 
-        except Exception as e:
-            logger.error(f"浏览器获取IP失败: {e}")
-            return None
+    def _get_wan(self, session: requests.Session) -> dict:
+        response = session.get(f"{self.url}/api/ntwk/wan?type=active", timeout=self.timeout)
+        response.raise_for_status()
+        return response.json()
 
     def get_public_ip(self) -> Optional[str]:
         """获取公网IP地址（仅从路由器获取）"""
-        return asyncio.run(self._get_ip_via_browser())
+        try:
+            with requests.Session() as session:
+                session.headers.update(
+                    {
+                        "Accept": "application/json, text/javascript, */*; q=0.01",
+                        "Content-Type": "application/json; charset=utf-8",
+                        "X-Requested-With": "XMLHttpRequest",
+                        "_ResponseFormat": "JSON",
+                    }
+                )
+
+                self._login(session)
+                wan = self._get_wan(session)
+
+            wan_ip = wan.get("IPv4Addr")
+            if not wan_ip:
+                logger.error(f"路由器WAN接口响应中未找到IPv4Addr: {wan}")
+                return None
+
+            logger.debug(f"从路由器获取到公网IP: {wan_ip}")
+            return wan_ip
+        except (requests.RequestException, RouterLoginError, KeyError, ValueError) as exc:
+            logger.error(f"路由器API获取IP失败: {exc}")
+            return None
 
 
 class IPFetcher:
@@ -78,6 +180,7 @@ class IPFetcher:
             url=router_config.get("url", "http://192.168.3.1"),
             username=router_config.get("username", "admin"),
             password=router_config.get("password", ""),
+            timeout=router_config.get("timeout", 10),
         )
 
     def get_public_ip(self) -> Optional[str]:

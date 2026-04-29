@@ -20,7 +20,7 @@ services:
       - type: bind
         source: ${LOGS_PATH:-./logs}
         target: /app/logs
-    working_dir: /app/src
+    working_dir: /app
     networks:
       - wan-ip-sync-network
 

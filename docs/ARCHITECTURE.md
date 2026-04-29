@@ -11,8 +11,8 @@
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   华为路由器      │────▶│   Playwright      │────▶│   阿里云DNS      │
-│ 凌霄子母路由 Q6   │     │   无头浏览器       │     │   云解析DNS      │
+│   华为路由器      │────▶│   HTTP API        │────▶│   阿里云DNS      │
+│ 凌霄子母路由 Q6   │     │   SCRAM登录       │     │   云解析DNS      │
 │  (Web管理界面)    │     │                   │     │                 │
 └─────────────────┘     └──────────────────┘     └─────────────────┘
                                 │
@@ -38,13 +38,12 @@
 **职责**: 从路由器获取公网IP地址
 
 **技术方案**:
-- 使用 Playwright 异步无头浏览器
-- 访问路由器 Web 管理界面 `http://192.168.3.1/html/index.html`
-- 通过 `#userpassword_ctrl` 选择器定位密码输入框
-- 按 Enter 键提交登录
-- 等待 URL 包含 `/home` 确认登录成功
-- 跳转到设备信息页面 `/#/more/deviceinfo`
-- 从页面文本中用正则表达式提取 WAN IP
+- 使用路由器HTTP API，无需无头浏览器
+- 访问路由器 Web 管理入口 `http://192.168.3.1/html/index.html` 获取CSRF
+- 调用 `/api/system/user_login_nonce` 发起SCRAM登录
+- 调用 `/api/system/user_login_proof` 完成登录并校验服务端签名
+- 调用 `/api/ntwk/wan?type=active` 获取当前活动WAN信息
+- 从接口响应中的 `IPv4Addr` 字段读取公网IP
 
 **备用方案**:
 当路由器不可访问时，通过外部服务获取IP：
@@ -207,7 +206,7 @@ wan_ip_sync/
 ├── modules/
 │   ├── __init__.py
 │   ├── config_loader.py    # 配置加载模块
-│   ├── ip_fetcher.py       # IP获取模块（Playwright）
+│   ├── ip_fetcher.py       # IP获取模块（路由器HTTP API）
 │   ├── dns_syncer.py       # DNS同步模块（阿里云SDK）
 │   └── notifier.py         # 通知模块（Webhook）
 ├── logs/                   # 日志目录
@@ -234,11 +233,10 @@ wan_ip_sync/
 
 | 依赖包 | 版本 | 用途 |
 |--------|------|------|
-| playwright | >=1.40.0 | 无头浏览器，模拟用户操作获取IP |
 | aliyun-python-sdk-core-v3 | >=2.13.33 | 阿里云SDK核心 |
 | aliyun-python-sdk-alidns | >=1.0.0 | 阿里云DNS API |
 | pyyaml | >=6.0 | 配置文件解析 |
-| requests | >=2.28.0 | HTTP请求（备用IP获取、Webhook通知） |
+| requests | >=2.28.0 | 路由器API请求、Webhook通知 |
 
 ## 8. 错误处理
 

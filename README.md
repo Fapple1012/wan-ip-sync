@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- 从华为凌霄子母路由 Q6 获取公网IP（使用Playwright无头浏览器）
+- 从华为凌霄子母路由 Q6 获取公网IP（使用路由器HTTP API）
 - 自动同步到阿里云云解析DNS（支持A记录）
 - IP变化时通过钉钉/企业微信Webhook发送通知
 - 支持单次执行和循环执行模式
@@ -13,7 +13,6 @@
 ## 环境要求
 
 - Python 3.10+
-- Chrome/Chromium 浏览器（Playwright会自动安装）
 - 华为凌霄子母路由 Q6（或固件API兼容的华为路由器）
 
 ## 安装
@@ -24,9 +23,6 @@ cd wan_ip_sync
 
 # 安装依赖
 pip install -r requirements.txt
-
-# 安装Playwright浏览器
-playwright install chromium
 ```
 
 ## 配置
@@ -38,6 +34,7 @@ router:
   url: "http://192.168.3.1"      # 路由器地址
   username: "admin"             # 用户名
   password: "123456"           # 路由器登录密码
+  timeout: 10                   # 路由器请求超时（秒，可选）
 
 aliyun:
   access_key_id: "your_access_key_id"      # 阿里云AccessKey ID
@@ -239,7 +236,7 @@ wan_ip_sync/
 │   ├── main.py             # 程序入口
 │   └── modules/            # 模块目录
 │       ├── config_loader.py    # 配置加载
-│       ├── ip_fetcher.py       # IP获取（Playwright）
+│       ├── ip_fetcher.py       # IP获取（路由器HTTP API）
 │       ├── dns_syncer.py       # DNS同步（阿里云SDK）
 │       └── notifier.py         # 通知（Webhook）
 ├── config/                 # 配置目录
