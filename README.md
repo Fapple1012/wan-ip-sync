@@ -131,12 +131,11 @@ services:
     container_name: wan-ip-sync
     restart: unless-stopped
     volumes:
-      - ../config/config.yaml:/app/config/config.yaml:ro  # 只读挂载配置
-      - ../logs:/app/logs                    # 持久化日志
-      - ../data:/app/data                    # 持久化IP记录
-    working_dir: /app/src
+      - ../config:/app/config:ro            # 只读挂载配置目录
+      - ../logs:/app/logs                   # 持久化日志
+      - ../data:/app/data                   # 持久化IP记录
     environment:
-      - TZ=Asia/Shanghai                     # 设置时区
+      - TZ=Asia/Shanghai                    # 设置时区
 ```
 
 ### 手动Docker运行
@@ -149,10 +148,9 @@ docker build -t wan-ip-sync -f docker/Dockerfile .
 docker run -d \
   --name wan-ip-sync \
   --restart unless-stopped \
-  -v $(pwd)/config/config.yaml:/app/config/config.yaml:ro \
+  -v $(pwd)/config:/app/config:ro \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/data:/app/data \
-  -w /app/src \
   wan-ip-sync
 ```
 
@@ -160,10 +158,9 @@ docker run -d \
 
 ```bash
 docker run --rm \
-  -v $(pwd)/config/config.yaml:/app/config/config.yaml:ro \
+  -v $(pwd)/config:/app/config:ro \
   -v $(pwd)/data:/app/data \
-  -w /app/src \
-  wan-ip-sync python main.py --once
+  wan-ip-sync python src/main.py --once
 ```
 
 ### 自定义挂载路径
@@ -172,14 +169,20 @@ docker run --rm \
 
 | 环境变量 | 默认值 | 说明 |
 |---------|--------|------|
-| `CONFIG_PATH` | `./config/config.yaml` | 配置文件路径 |
+| `CONFIG_PATH` | `./config` | 配置目录（不是文件） |
 | `DATA_PATH` | `./data` | 数据目录 |
 | `LOGS_PATH` | `./logs` | 日志目录 |
 
 ```bash
 # 示例：使用自定义路径
-CONFIG_PATH=/your/config/config.yaml DATA_PATH=/your/data docker compose up -d
+CONFIG_PATH=/your/config DATA_PATH=/your/data docker compose up -d
 ```
+
+### Docker Desktop Volumes 使用说明
+
+在 Docker Desktop 的 "Volumes" UI 中可以管理命名卷（Named Volumes）。
+
+注意：Docker Desktop UI 的 "Volumes" 功能只能管理命名卷，无法绑定宿主机路径。如需绑定宿主机目录（config、logs、data），请通过 Docker Desktop 的 "File sharing" 功能将宿主机目录共享给 Docker，再使用 `docker compose` 命令的 bind mount 方式挂载。
 
 ### 查看容器状态
 
@@ -239,15 +242,14 @@ wan_ip_sync/
 │       ├── ip_fetcher.py       # IP获取（路由器HTTP API）
 │       ├── dns_syncer.py       # DNS同步（阿里云SDK）
 │       └── notifier.py         # 通知（Webhook）
-├── config/                 # 配置目录
+├── config/                 # 配置目录（挂载到容器内 /app/config）
 │   └── config.yaml         # 配置文件
 ├── docker/                 # Docker相关
 │   ├── Dockerfile          # Docker镜像构建文件
 │   └── docker-compose.yml  # Docker Compose配置
-├── docs/                   # 文档目录
-│   └── ARCHITECTURE.md     # 架构设计文档
-├── logs/                   # 日志目录
-├── data/                   # 数据目录
+├── logs/                   # 日志目录（挂载到容器内 /app/logs）
+├── data/                   # 数据目录（挂载到容器内 /app/data）
+│   └── .last_ip            # 上次IP记录
 ├── requirements.txt        # 依赖
 └── README.md               # 使用说明
 ```
