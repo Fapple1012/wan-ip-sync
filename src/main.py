@@ -86,6 +86,7 @@ def save_current_ip(state_file: str, ip: str):
     try:
         with open(state_file, "w") as f:
             f.write(ip)
+        logging.info(f"保存当前公网IP:{ip}")
     except Exception as e:
         logging.error(f"保存IP失败: {e}")
 
@@ -107,35 +108,47 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
 
     logging.debug(f"当前公网IP: {current_ip}")
 
-    # 2. 从阿里云DNS获取各记录当前的IP
+    # 2. 获取上次保存的IP（dns_ip）
+    last_ip = load_last_ip(STATE_FILE)
     syncer = DNSSyncer(config)
-    dns_ips = {}
-    for domain_config in config.get("domains", []):
-        domain = domain_config.get("domain")
-        record = domain_config.get("record", "@")
-        dns_ip = syncer.get_dns_ip(domain, record)
-        record_name = f"{record}.{domain}" if record != "@" else domain
-        dns_ips[record_name] = dns_ip
-        if dns_ip:
-            logging.debug(f"DNS当前IP [{record_name}]: {dns_ip}")
-        else:
-            logging.debug(f"DNS当前IP [{record_name}]: 不存在")
 
-    # 3. 检查是否有任何记录需要更新
-    need_update = False
-    for record_name, dns_ip in dns_ips.items():
-        if dns_ip != current_ip:
-            need_update = True
+    if last_ip:
+        # 非首次运行：直接用本地保存的IP比较
+        logging.debug(f"上次保存的IP: {last_ip}")
+        if current_ip == last_ip:
+            logging.debug("IP未变化，无需更新DNS")
+            return True
+        # IP发生变化，需要同步
+        need_update = True
+        dns_ip = last_ip
+    else:
+        # 首次运行：从阿里云DNS获取各记录当前的IP
+        logging.debug("首次运行，从阿里云DNS获取各记录当前IP")
+        dns_ips = {}
+        for domain_config in config.get("domains", []):
+            domain = domain_config.get("domain")
+            record = domain_config.get("record", "@")
+            dns_ip = syncer.get_dns_ip(domain, record)
+            record_name = f"{record}.{domain}" if record != "@" else domain
+            dns_ips[record_name] = dns_ip
             if dns_ip:
-                logging.debug(f"IP变化检测: {record_name} ({dns_ip} -> {current_ip})")
+                logging.debug(f"DNS当前IP [{record_name}]: {dns_ip}")
             else:
-                logging.debug(f"DNS记录不存在或需创建: {record_name} -> {current_ip}")
+                logging.debug(f"DNS当前IP [{record_name}]: 不存在")
 
-    if not need_update:
-        logging.debug("DNS记录已是最新，无需更新")
-        return True
+        # 检查是否有任何记录需要更新
+        need_update = False
+        for record_name, dns_ip in dns_ips.items():
+            if dns_ip and dns_ip != current_ip:
+                need_update = True
+                logging.debug(f"IP变化检测: {record_name} ({dns_ip} -> {current_ip})")
 
-    # 4. 执行DNS同步
+        if not need_update:
+            logging.debug("DNS记录已是最新，无需更新")
+            save_current_ip(STATE_FILE, current_ip)
+            return True
+
+    # 3. 执行DNS同步
     logging.debug("执行DNS同步...")
     results = syncer.sync_all(current_ip)
 
@@ -143,15 +156,13 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
     if failed:
         logging.warning(f"部分记录更新失败: {failed}")
 
-    # 5. 保存当前IP到本地文件
+    # 4. 保存当前IP到本地文件
     save_current_ip(STATE_FILE, current_ip)
 
-    # 6. 发送通知
+    # 5. 发送通知
     if notifier:
-        old_ips = {name: ip for name, ip in dns_ips.items() if ip}
-        if old_ips:
-            old_ip_str = list(old_ips.values())[0]
-            notifier.notify_ip_changed(old_ip_str, current_ip, results)
+        if dns_ip:
+            notifier.notify_ip_changed(dns_ip, current_ip, results)
         else:
             notifier.notify_startup(current_ip)
 
@@ -162,7 +173,8 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
 def run_loop(config: dict):
     """循环运行"""
     interval = config.get("check_interval", 600)
-    notifier = Notifier(config) if config.get("notification", {}).get("webhook_url") else None
+    # notifier = Notifier(config) if config.get("notification", {}).get("webhook_url") else None
+    notifier = None
 
     logging.debug(f"程序启动，每 {interval} 秒检查一次")
 

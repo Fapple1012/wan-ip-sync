@@ -170,7 +170,7 @@ class HuaweiRouterFetcher:
             return wan_ip
         except (requests.RequestException, RouterLoginError, KeyError, ValueError) as exc:
             logger.error(f"路由器API获取IP失败: {exc}")
-            return None
+            raise
 
 
 class IPFetcher:

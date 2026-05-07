@@ -11,8 +11,8 @@ services:
       - TZ=Asia/Shanghai
     volumes:
       - type: bind
-        source: ${CONFIG_PATH:-./config/config.yaml}
-        target: /app/config/config.yaml
+        source: ${CONFIG_PATH:-./config}
+        target: /app/config
         read_only: true
       - type: bind
         source: ${DATA_PATH:-./data}

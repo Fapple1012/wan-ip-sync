@@ -14,11 +14,7 @@ class ConfigLoader:
 
     def load(self, config_path: str = None) -> Dict[str, Any]:
         if not config_path:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                "config",
-                "config.yaml"
-            )
+            config_path = "/app/config/config.yaml"
 
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"配置文件不存在: {config_path}")
