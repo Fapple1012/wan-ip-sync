@@ -83,7 +83,7 @@ python src/main.py --once
 python src/main.py --config /path/to/config.yaml
 
 # Docker 运行
-docker run -v ./config:/app/config wan-ip-sync
+docker build -t wan-ip-sync -f docker/Dockerfile . && docker run -v ./config:/app/config wan-ip-sync
 ```
 
 ## 关键设计
@@ -127,5 +127,5 @@ Commit 完成，是否构建 Docker 镜像？
 [ No ]   跳过
 ```
 
-- 选择 Yes：执行 `docker build -t wan-ip-sync .` 命令
+- 选择 Yes：执行 `docker build -t wan-ip-sync -f docker/Dockerfile .` 命令
 - 选择 No：结束当前操作
