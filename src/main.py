@@ -155,6 +155,7 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
     failed = [record for record, success in results.items() if not success]
     if failed:
         logging.warning(f"部分记录更新失败: {failed}")
+        return False
 
     # 4. 保存当前IP到本地文件
     save_current_ip(STATE_FILE, current_ip)
