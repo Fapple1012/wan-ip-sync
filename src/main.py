@@ -129,6 +129,9 @@ def sync_once(config: dict, notifier: Notifier = None) -> bool:
             domain = domain_config.get("domain")
             record = domain_config.get("record", "@")
             dns_ip = syncer.get_dns_ip(domain, record)
+            if not dns_ip:
+                logging.warning(f"无法获取DNS记录IP: {record}.{domain}")
+                return False
             record_name = f"{record}.{domain}" if record != "@" else domain
             dns_ips[record_name] = dns_ip
             if dns_ip:
