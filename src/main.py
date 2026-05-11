@@ -197,6 +197,14 @@ def main():
 
     setup_logging()
 
+    # 启动时清空本地保存的IP
+    if os.path.exists(STATE_FILE):
+        try:
+            os.remove(STATE_FILE)
+            logging.debug("清空上次保存的IP")
+        except Exception:
+            pass
+
     loader = ConfigLoader()
     config = loader.load(args.config)
 
